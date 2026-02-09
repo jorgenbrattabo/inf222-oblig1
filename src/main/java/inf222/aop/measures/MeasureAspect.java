@@ -26,9 +26,8 @@ public class MeasureAspect {
         pattern = Pattern.compile(".*_(" + units + ")$");
     }
 
-    // ----------------------------------
+
     // Advice for reading fields: convert to meters
-    // ----------------------------------
     @Around("get(double inf222.aop.measures..*)")
     public Object convertToMeters(ProceedingJoinPoint pjp) throws Throwable {
         Object result = pjp.proceed();
@@ -50,9 +49,8 @@ public class MeasureAspect {
         return value;
     }
 
-    // ----------------------------------
+
     // Advice for writing fields: convert back (exclude constructors)
-    // ----------------------------------
     @Around("set(double inf222.aop.measures..*) && !cflow(execution(*.new(..)))")
     public void convertBackFromMeters(ProceedingJoinPoint pjp) throws Throwable {
         Object[] args = pjp.getArgs();
@@ -81,9 +79,8 @@ public class MeasureAspect {
         pjp.proceed();
     }
 
-    // ----------------------------------
+
     // Advice for validating positive values (includes constructors)
-    // ----------------------------------
     @Around("set(double inf222.aop.measures..*)")
     public void validatePositive(ProceedingJoinPoint pjp) throws Throwable {
         Object[] args = pjp.getArgs();
@@ -100,5 +97,3 @@ public class MeasureAspect {
         pjp.proceed();
     }
 }
-
-//Void --> Procedures do not have a return value
