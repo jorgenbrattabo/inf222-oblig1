@@ -26,9 +26,7 @@ public class MeasureAspect {
         pattern = Pattern.compile(".*_(cm|ft|in|yd|m)$");
     }
 
-    // =========================
-    // READ: Convert to meters
-    // =========================
+    // Convert to meters
     @Around("get(double inf222.aop.measures..*)")
     public Object convertToMeters(ProceedingJoinPoint pjp) throws Throwable {
 
@@ -45,9 +43,7 @@ public class MeasureAspect {
         return value * toMeter.get(unit);
     }
 
-    // ======================================
-    // VALIDATION (runs everywhere, incl. constructor)
-    // ======================================
+
     @Around("set(double inf222.aop.measures..*)")
     public void validateNegative(ProceedingJoinPoint pjp) throws Throwable {
 
@@ -69,9 +65,6 @@ public class MeasureAspect {
         pjp.proceed();
     }
 
-    // ======================================
-    // WRITE conversion (exclude constructor)
-    // ======================================
     @Around("set(double inf222.aop.measures..*) && !cflow(execution(*.new(..)))")
     public void convertBack(ProceedingJoinPoint pjp) throws Throwable {
 
