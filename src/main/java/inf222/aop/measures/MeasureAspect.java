@@ -27,11 +27,19 @@ public class MeasureAspect {
         pattern = Pattern.compile(".*_(" + units + ")$");
     }
 
-    // ===============================
+    // ===================================================
     // Convert field READ to meters
-    // ===============================
+    // ===================================================
     @Around("get(double inf222.aop.measures..*)")
     public Object convertToMeters(ProceedingJoinPoint pjp) throws Throwable {
+
+        String fieldName = pjp.getSignature().getName();
+        Matcher matcher = pattern.matcher(fieldName);
+
+        // If field does NOT have unit suffix → do nothing
+        if (!matcher.find()) {
+            return pjp.proceed();
+        }
 
         Object result = pjp.proceed();
 
@@ -40,28 +48,31 @@ public class MeasureAspect {
         }
 
         double value = (Double) result;
-        String fieldName = pjp.getSignature().getName();
+        String unit = matcher.group(1);
+        Double factor = toMeter.get(unit);
 
-        Matcher matcher = pattern.matcher(fieldName);
-
-        if (matcher.find()) {
-            String unit = matcher.group(1);
-            Double factor = toMeter.get(unit);
-
-            if (factor != null) {
-                return value * factor; // convert to meters
-            }
+        if (factor != null) {
+            return value * factor; // convert to meters
         }
 
         return value;
     }
 
-    // ===================================================
+
     // Handle field WRITE (validate + convert back)
     // Excludes constructor initialization
-    // ===================================================
+    // Only applies to fields WITH unit suffix
     @Around("set(double inf222.aop.measures..*) && !cflow(execution(*.new(..)))")
     public void handleSet(ProceedingJoinPoint pjp) throws Throwable {
+
+        String fieldName = pjp.getSignature().getName();
+        Matcher matcher = pattern.matcher(fieldName);
+
+        // If field does NOT have unit suffix → do nothing special
+        if (!matcher.find()) {
+            pjp.proceed();
+            return;
+        }
 
         Object[] args = pjp.getArgs();
 
@@ -69,24 +80,18 @@ public class MeasureAspect {
 
             double valueInMeters = (Double) args[0];
 
-            // 1️⃣ Validate positive value
+            // Validate negative value
             if (valueInMeters < 0) {
                 throw new Error("Illegal modification");
             }
 
-            // 2️⃣ Convert back to original unit
-            String fieldName = pjp.getSignature().getName();
-            Matcher matcher = pattern.matcher(fieldName);
+            String unit = matcher.group(1);
+            Double factor = toMeter.get(unit);
 
             double valueInOriginalUnit = valueInMeters;
 
-            if (matcher.find()) {
-                String unit = matcher.group(1);
-                Double factor = toMeter.get(unit);
-
-                if (factor != null) {
-                    valueInOriginalUnit = valueInMeters / factor;
-                }
+            if (factor != null) {
+                valueInOriginalUnit = valueInMeters / factor;
             }
 
             pjp.proceed(new Object[]{valueInOriginalUnit});
