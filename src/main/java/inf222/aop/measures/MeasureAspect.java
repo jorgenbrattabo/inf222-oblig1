@@ -1,6 +1,5 @@
 package inf222.aop.measures;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -14,90 +13,84 @@ public class MeasureAspect {
 
     private final Pattern pattern;
 
-    private final Map<String, Double> toMeter = new HashMap<>(Map.of(
-            "m", 1d,
+    private final Map<String, Double> toMeter = Map.of(
+            "cm", 0.01d,
             "ft", 0.3048d,
             "in", 0.0254d,
-            "cm", 0.01d,
-            "yd", 0.9144d
-    ));
+            "yd", 0.9144d,
+            "m", 1d
+    );
 
     public MeasureAspect() {
-        String units = String.join("|", toMeter.keySet());
+        // Longest first to avoid matching _m inside _cm
         pattern = Pattern.compile(".*_(cm|ft|in|yd|m)$");
     }
 
-    // ===================================================
-    // Convert field READ to meters
-    // ===================================================
+    // =========================
+    // READ: Convert to meters
+    // =========================
     @Around("get(double inf222.aop.measures..*)")
     public Object convertToMeters(ProceedingJoinPoint pjp) throws Throwable {
 
         String fieldName = pjp.getSignature().getName();
         Matcher matcher = pattern.matcher(fieldName);
 
-        // If field does NOT have unit suffix → do nothing
         if (!matcher.find()) {
             return pjp.proceed();
         }
 
-        Object result = pjp.proceed();
-
-        if (!(result instanceof Double)) {
-            return result;
-        }
-
-        double value = (Double) result;
+        double value = (double) pjp.proceed();
         String unit = matcher.group(1);
-        Double factor = toMeter.get(unit);
 
-        if (factor != null) {
-            return value * factor; // convert to meters
-        }
-
-        return value;
+        return value * toMeter.get(unit);
     }
 
-
-    // Handle field WRITE (validate + convert back)
-    // Excludes constructor initialization
-    // Only applies to fields WITH unit suffix
-    @Around("set(double inf222.aop.measures..*) && !cflow(execution(*.new(..)))")
-    public void handleSet(ProceedingJoinPoint pjp) throws Throwable {
+    // ======================================
+    // VALIDATION (runs everywhere, incl. constructor)
+    // ======================================
+    @Around("set(double inf222.aop.measures..*)")
+    public void validateNegative(ProceedingJoinPoint pjp) throws Throwable {
 
         String fieldName = pjp.getSignature().getName();
         Matcher matcher = pattern.matcher(fieldName);
 
-        // If field does NOT have unit suffix → do nothing special
         if (!matcher.find()) {
             pjp.proceed();
             return;
         }
 
         Object[] args = pjp.getArgs();
+        double value = (double) args[0];
 
-        if (args.length == 1 && args[0] instanceof Double) {
-
-            double valueInMeters = (Double) args[0];
-
-            // Validate negative value
-            if (valueInMeters < 0) {
-                throw new Error("Illegal modification");
-            }
-
-            String unit = matcher.group(1);
-            Double factor = toMeter.get(unit);
-
-            double valueInOriginalUnit = valueInMeters;
-
-            if (factor != null) {
-                valueInOriginalUnit = valueInMeters / factor;
-            }
-
-            pjp.proceed(new Object[]{valueInOriginalUnit});
-            return;
+        if (value < 0) {
+            throw new Error("Illegal modification");
         }
 
         pjp.proceed();
+    }
+
+    // ======================================
+    // WRITE conversion (exclude constructor)
+    // ======================================
+    @Around("set(double inf222.aop.measures..*) && !cflow(execution(*.new(..)))")
+    public void convertBack(ProceedingJoinPoint pjp) throws Throwable {
+
+        String fieldName = pjp.getSignature().getName();
+        Matcher matcher = pattern.matcher(fieldName);
+
+        if (!matcher.find()) {
+            pjp.proceed();
+            return;
+        }
+
+        Object[] args = pjp.getArgs();
+        double valueInMeters = (double) args[0];
+
+        String unit = matcher.group(1);
+        double factor = toMeter.get(unit);
+
+        double valueInOriginalUnit = valueInMeters / factor;
+
+        pjp.proceed(new Object[]{valueInOriginalUnit});
     }
 }
