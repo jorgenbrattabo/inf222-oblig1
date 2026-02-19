@@ -24,7 +24,7 @@ public class MeasureAspect {
 
     public MeasureAspect() {
         String units = String.join("|", toMeter.keySet());
-        pattern = Pattern.compile(".*_(" + units + ")$");
+        pattern = Pattern.compile(".*_(cm|ft|in|yd|m)$");
     }
 
     // ===================================================
